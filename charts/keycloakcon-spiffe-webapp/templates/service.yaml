@@ -1,0 +1,16 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ include "keycloakcon-spiffe-webapp.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "keycloakcon-spiffe-webapp.labels" . | nindent 4 }}
+spec:
+  ports:
+    - name: {{ .Values.service.port }}-tcp
+      protocol: TCP
+      port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.port }}
+  type: {{ .Values.service.type }}
+  selector:
+    app.kubernetes.io/name: {{ include "keycloakcon-spiffe-webapp.name" . }}

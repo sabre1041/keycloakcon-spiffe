@@ -1,0 +1,28 @@
+kind: Ingress
+apiVersion: networking.k8s.io/v1
+metadata:
+{{ if or (.Values.ingress.annotations) (eq .Values.openshift true) }}
+  annotations:
+  {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- if eq .Values.openshift true }}
+    route.openshift.io/termination: edge
+{{- end }}
+{{- end }}
+  name: {{ include "keycloakcon-spiffe-webapp.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "keycloakcon-spiffe-webapp.labels" . | nindent 4 }}
+spec:
+  rules:
+    - host: {{ required "ingress.host is required" .Values.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "keycloakcon-spiffe-webapp.fullname" . }}
+                port:
+                  number: {{ .Values.service.port }}

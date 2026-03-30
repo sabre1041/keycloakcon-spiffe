@@ -1,0 +1,100 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: {{ include "keycloakcon-spiffe-webapp.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "keycloakcon-spiffe-webapp.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "keycloakcon-spiffe-webapp.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "keycloakcon-spiffe-webapp.labels" . | nindent 8 }}
+    spec:
+      restartPolicy: Always
+      serviceAccountName: {{ include "keycloakcon-spiffe-webapp.serviceAccountName" . }}
+      terminationGracePeriodSeconds: 30
+      securityContext: {}
+      initContainers:
+        - name: init-spiffe-helper
+          image: "{{ template "keycloakcon-spiffe-webapp.image" (dict "repository" (eq .Values.openshift true | ternary .Values.spiffeHelperImage.openShiftRepository .Values.spiffeHelperImage.repository) "version" (eq .Values.openshift true | ternary .Values.spiffeHelperImage.openShiftVersion .Values.spiffeHelperImage.version)) }}"
+          imagePullPolicy: IfNotPresent
+          args:
+            - '-config'
+            - /etc/helper.conf
+            - '-daemon-mode=false'
+          volumeMounts:
+            - name: spiffe-helper-config
+              readOnly: true
+              mountPath: /etc/helper.conf
+              subPath: helper.conf
+            - name: spiffe-workload-api
+              readOnly: true
+              mountPath: /spiffe-workload-api
+            - name: svids
+              mountPath: /svids
+      containers:
+        - name: spiffe-helper
+          image: "{{ template "keycloakcon-spiffe-webapp.image" (dict "repository" (eq .Values.openshift true | ternary .Values.spiffeHelperImage.openShiftRepository .Values.spiffeHelperImage.repository) "version" (eq .Values.openshift true | ternary .Values.spiffeHelperImage.openShiftVersion .Values.spiffeHelperImage.version)) }}"
+          args:
+            - '-config'
+            - /etc/helper.conf
+          resources: {}
+          volumeMounts:
+            - name: spiffe-helper-config
+              readOnly: true
+              mountPath: /etc/helper.conf
+              subPath: helper.conf
+            - name: spiffe-workload-api
+              readOnly: true
+              mountPath: /spiffe-workload-api
+            - name: svids
+              mountPath: /svids
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          imagePullPolicy: IfNotPresent
+        - resources: {}
+          terminationMessagePath: /dev/termination-log
+          name: webapp
+          env:
+            - name: QUARKUS_OIDC_AUTH_SERVER_URL
+              value: {{ required "keycloak.issuerURL is required" .Values.keycloak.issuerURL }}
+            - name: QUARKUS_OIDC_CLIENT_ID
+              value: {{ .Values.keycloak.clientID }}
+            - name: QUARKUS_OIDC_CREDENTIALS_JWT_TOKEN_PATH
+              value: /svids/jwt.token
+            - name: QUARKUS_OIDC_AUTHENTICATION_FORCE_REDIRECT_HTTPS_SCHEME
+              value: 'true'
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: svids
+              mountPath: /svids
+          terminationMessagePolicy: File
+          image: "{{ template "keycloakcon-spiffe-webapp.image" (dict "repository" .Values.image.repository "version" .Values.image.version) }}"
+      serviceAccountName: {{ include "keycloakcon-spiffe-webapp.serviceAccountName" . }}
+      volumes:
+        - name: spiffe-helper-config
+          configMap:
+            name: {{ include "keycloakcon-spiffe-webapp.fullname" . }}-spiffe-helper
+            defaultMode: 420
+        - name: svids
+          emptyDir: {}
+        - name: spiffe-workload-api
+          csi:
+            driver: csi.spiffe.io
+            readOnly: true
+      dnsPolicy: ClusterFirst
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  revisionHistoryLimit: 10
+  progressDeadlineSeconds: 600

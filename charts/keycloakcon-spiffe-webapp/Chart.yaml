@@ -1,0 +1,5 @@
+apiVersion: v2
+name: keycloakcon-spiffe-webapp
+description: Deploys a sample web application that is protected by Keycloak and uses SPIFFE for authentication.
+type: application
+version: 0.1.0
