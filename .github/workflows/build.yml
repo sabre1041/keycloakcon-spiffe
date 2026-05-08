@@ -2,10 +2,9 @@ name: Build and Push Container Image
 
 on:
   push:
-    branches: [main]
-    tags: ['v*']
+    branches: [keycloak]
   pull_request:
-    branches: [main]
+    branches: [keycloak]
 
 jobs:
   build:
@@ -45,7 +44,7 @@ jobs:
         with:
           images: ${{ vars.IMAGE_REGISTRY }}/${{ vars.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest
+            type=raw,value=keycloak
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -53,7 +52,7 @@ jobs:
           context: .
           file: src/main/docker/Dockerfile
           platforms: linux/amd64,linux/arm64
-          push: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') }}
+          push: ${{ github.ref == 'refs/heads/keycloak' || startsWith(github.ref, 'refs/tags/') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
